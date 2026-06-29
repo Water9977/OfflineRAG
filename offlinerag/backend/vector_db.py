@@ -8,12 +8,16 @@ class LocalVectorDB:
     A lightweight, single-file vector database written in pure Python & NumPy.
     Capped at under 80 lines to maintain absolute clarity and academic transparency.
     """
-    def __init__(self, data_dir: str = "offlinerag/data"):
+    def __init__(self, data_dir: str = None):
+        if data_dir is None:
+            base = os.path.dirname(os.path.abspath(__file__))
+            data_dir = os.path.join(base, "..", "data")
         self.data_dir = data_dir
         self.db_path = os.path.join(data_dir, "vector_index.json")
         self.chunks: List[Dict] = []
         self._ensure_data_dir()
         self.load()
+
 
     def _ensure_data_dir(self):
         os.makedirs(self.data_dir, exist_ok=True)
