@@ -36,7 +36,7 @@ class LMStudioClient:
                 f"and '{model}' is active."
             )
 
-    def stream_chat(self, messages: List[dict], model: str = "qwen/qwen3-8b", temperature: float = 0.2) -> Generator[str, None, None]:
+    def stream_chat(self, messages: List[dict], model: str = "qwen/qwen3.5-9b", temperature: float = 0.2) -> Generator[str, None, None]:
         """
         Sends a list of chat messages to the local LLM (Qwen3-8B) and yields
         response tokens as they are generated in real-time (streaming).

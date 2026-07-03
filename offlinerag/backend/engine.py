@@ -1,4 +1,5 @@
 # Query execution engine coordinating parsing, indexing, and LLM communication
+import os
 from typing import Generator
 from backend import parser
 from backend import vector_db
@@ -26,6 +27,32 @@ def index_codebase(folder_path: str, db: vector_db.LocalVectorDB, llm_client: ll
     db.save()
     return len(chunks)
 
+def find_import_chunks(matches: list, all_chunks: list, question: str) -> list:
+    """Finds related code chunks from local modules imported by the matched chunks."""
+    imported_modules = set()
+    for match, _ in matches:
+        f_path = match["metadata"].get("file_path")
+        if f_path and os.path.exists(f_path):
+            try:
+                with open(f_path, "r", encoding="utf-8") as f:
+                    for line in f.read().splitlines():
+                        if line.strip().startswith(("import ", "from ")):
+                            words = [w.strip() for w in line.replace(",", " ").replace(".", " ").split()]
+                            imported_modules.update(w for w in words if w not in ("import", "from", "as", "*"))
+            except Exception:
+                continue
+                
+    extra_chunks, retrieved = [], {m[0]["metadata"]["name"] for m in matches}
+    q_words = set(question.lower().split())
+    for mod in imported_modules:
+        candidates = [c for c in all_chunks if os.path.basename(c["metadata"]["filename"]).replace(".py", "") == mod 
+                      and c["metadata"]["name"] not in retrieved]
+        if candidates:
+            best = next((c for c in candidates if any(w in c["metadata"]["name"].lower() for w in q_words)), candidates[0])
+            extra_chunks.append(best)
+            retrieved.add(best["metadata"]["name"])
+    return extra_chunks
+
 def build_synthesis_prompt(retrieved_chunks: list, question: str) -> list:
     """
     Constructs the system and user messages package for the LLM.
@@ -44,11 +71,11 @@ def build_synthesis_prompt(retrieved_chunks: list, question: str) -> list:
     
     # Format all retrieved chunks into a single readable context block
     context_blocks = []
-    for match in retrieved_chunks:
-        chunk = match[0]
+    for chunk, score in retrieved_chunks:
         meta = chunk["metadata"]
+        relation_type = "Direct Match" if score > 0.0 else "Related via Import"
         block = (
-            f"--- File: {meta['filename']} (Lines: {meta['lines']}) ---\n"
+            f"--- File: {meta['filename']} (Lines: {meta['lines']}) [{relation_type}] ---\n"
             f"Type: {meta['type']}\n"
             f"Name: {meta['name']}\n"
             f"Code:\n{chunk['content']}\n"
@@ -100,8 +127,13 @@ def answer_question(
     )
     yield {"step": "retrieved", "detail": f"Found matching blocks: {found_details}"}
     
-    # Step 3: Import walk (skipped for now as per instructions)
-    yield {"step": "imports", "detail": "Import walk: skipped (not active)"}
+    # Step 3: Import walk
+    extra_chunks = find_import_chunks(matches, db.chunks, question)
+    imported_filenames = list(set(c["metadata"]["filename"] for c in extra_chunks))
+    yield {"step": "imports", "detail": f"Following imports: {imported_filenames}"}
+    
+    # Add extra chunks to matches (similarity score = 0.0 means related via import)
+    matches = matches + [(chunk, 0.0) for chunk in extra_chunks]
     
     # Step 4: Build prompt context
     messages = build_synthesis_prompt(matches, question)

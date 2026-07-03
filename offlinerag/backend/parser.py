@@ -18,6 +18,7 @@ def extract_node_data(
     node: ast.AST, 
     source_code: str, 
     relative_path: str, 
+    file_path: str,
     node_type: str, 
     parent_class: Optional[str] = None
 ) -> Dict:
@@ -33,6 +34,7 @@ def extract_node_data(
         "content": source_segment,
         "metadata": {
             "filename": relative_path,
+            "file_path": file_path,
             "name": getattr(node, "name", "unknown"),
             "type": node_type,
             "parent_class": parent_class,
@@ -41,7 +43,7 @@ def extract_node_data(
         }
     }
 
-def parse_file_nodes(source_code: str, relative_path: str) -> List[Dict]:
+def parse_file_nodes(source_code: str, relative_path: str, file_path: str) -> List[Dict]:
     """
     Parses a single Python file's source code using the AST module.
     Identifies top-level functions, classes, and class methods.
@@ -56,12 +58,12 @@ def parse_file_nodes(source_code: str, relative_path: str) -> List[Dict]:
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             # Global functions
-            chunks.append(extract_node_data(node, source_code, relative_path, "function"))
+            chunks.append(extract_node_data(node, source_code, relative_path, file_path, "function"))
             
         elif isinstance(node, ast.ClassDef):
             # Class definitions
             class_name = node.name
-            chunks.append(extract_node_data(node, source_code, relative_path, "class"))
+            chunks.append(extract_node_data(node, source_code, relative_path, file_path, "class"))
             
             # Extract methods inside this class
             for sub_node in node.body:
@@ -71,6 +73,7 @@ def parse_file_nodes(source_code: str, relative_path: str) -> List[Dict]:
                             sub_node, 
                             source_code, 
                             relative_path, 
+                            file_path,
                             "method", 
                             parent_class=class_name
                         )
@@ -104,7 +107,7 @@ def parse_directory(root_path: str) -> List[Dict]:
             except Exception:
                 continue
                 
-            file_chunks = parse_file_nodes(source_code, relative_path)
+            file_chunks = parse_file_nodes(source_code, relative_path, file_path)
             all_chunks.extend(file_chunks)
             
     return all_chunks

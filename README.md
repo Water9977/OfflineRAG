@@ -61,7 +61,7 @@ Three packages only. PyTorch and the heavy machine learning libraries were delib
 ```
 openai      talks to LM Studio
 numpy       vector math for search
-streamlit   the web interface (coming in week 4)
+streamlit   the web interface
 ```
 
 ---
@@ -76,7 +76,10 @@ OfflineRAG/
 │   │   ├── llm.py          # connects to LM Studio for chat and embeddings
 │   │   ├── parser.py       # reads Python files using the AST module
 │   │   ├── vector_db.py    # NumPy vector store with Cosine Similarity search
-│   │   └── engine.py       # the deterministic 5 step search pipeline
+│   │   └── engine.py       # the deterministic 5 step search and import walk pipeline
+│   │
+│   ├── frontend/
+│   │   └── app.py          # Streamlit chat dashboard
 │   │
 │   ├── test_codebase/      # a small sample Flask style app to test against
 │   │   ├── app.py
@@ -88,12 +91,15 @@ OfflineRAG/
 │   ├── test_week1.py       # checks LM Studio connection and vector search
 │   ├── test_week2.py       # checks the AST parser
 │   ├── test_week3.py       # checks the full question answering pipeline
+│   ├── test_week5.py       # performance benchmarks
 │   └── requirements.txt
 │
 └── docs/                   # weekly progress reports
     ├── week1_report.md
     ├── week2_report.md
-    └── week3_report.md
+    ├── week3_report.md
+    ├── week4_report.md
+    └── week5_report.md
 ```
 
 ---
@@ -109,11 +115,11 @@ Built a small sample app with five files that behave like a real login system, s
 ### Week 3: the engine
 Connected the three parts into one flow. `engine.py` indexes a codebase once, then answers questions through a fixed 5 step pipeline: embed the question, search the index, note imports, build the prompt, and stream the answer. The answer is told to use only the provided code and to cite exact file names and line numbers. Tested with "how are user passwords hashed?" and got a correct answer citing `auth.py` lines 6 to 11.
 
-### Week 4: web dashboard (planned)
-A Streamlit interface with a chat window and a visible step log under each answer, so anyone can see exactly which files the system read before responding.
+### Week 4: web dashboard
+Built a Streamlit interface with a chat window and a visible step log under each answer, so anyone can see exactly which files the system read before responding. Also fixed a bug where the vector database folder path depended on which directory the app was launched from.
 
-### Week 5: benchmarks and final report (planned)
-Measure speed and memory use, write the final NTCC report, and prepare the live offline demo.
+### Week 5: import walk, benchmarks, and cleanup
+Added a real import walk to the engine, so a question about one file also pulls in code from files it imports, instead of relying on keyword matching alone. Built a benchmarking script that measured indexing speed, embedding speed, and search speed, all of which are fast. The one slow part is answer generation itself, which takes 20 to 30 seconds because Qwen3.5 9B reasons internally before every answer regardless of instructions telling it not to. This was confirmed by testing a plain five word question with no code context at all, which took the same amount of time. It is a genuine speed versus depth tradeoff rather than a bug. Also caught and fixed a leftover model name from week 1 that never got updated after switching models.
 
 ---
 
@@ -130,7 +136,13 @@ cd offlinerag
 python test_week1.py   # connection and search
 python test_week2.py   # parser
 python test_week3.py   # full pipeline
+python test_week5.py   # performance benchmarks
+
+# or launch the web dashboard
+streamlit run frontend/app.py
 ```
+
+Open the sidebar, paste the path to any Python folder on your machine, click Index Codebase, and start asking questions in the chat box.
 
 ---
 
